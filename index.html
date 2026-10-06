@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LotLedger</title>
+<meta name="description" content="Inventory and profit for bulk resellers">
+<meta name="theme-color" content="#FFC928">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LotLedger">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#EEF1F5; --surface:#FFFFFF; --ink:#16213A; --muted:#5A6680; --line:#D6DCE6;
+  --tape:#FFC928; --tape-ink:#16213A; --gain:#1C7A4E; --loss:#B5372A; --field:#F6F8FB;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1320; --surface:#161F33; --ink:#E8ECF4; --muted:#98A4BD; --line:#27324B;
+    --tape:#FFC928; --tape-ink:#16213A; --gain:#4CC38A; --loss:#F0735F; --field:#1C2640;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1320; --surface:#161F33; --ink:#E8ECF4; --muted:#98A4BD; --line:#27324B;
+  --tape:#FFC928; --tape-ink:#16213A; --gain:#4CC38A; --loss:#F0735F; --field:#1C2640;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Archivo',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--tape);outline-offset:2px}
+img,svg{max-width:100%}
+
+.num{font-stretch:72%;font-weight:760;font-variant-numeric:tabular-nums;letter-spacing:-.005em}
+.muted{color:var(--muted)}
+.gain{color:var(--gain)} .loss{color:var(--loss)}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.top-in{max-width:980px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-stretch:80%;font-size:22px;letter-spacing:-.01em}
+.mark{width:26px;height:26px;border-radius:5px;background:var(--tape);position:relative;box-shadow:inset 0 -6px 0 rgba(22,33,58,.18)}
+.mark::after{content:"";position:absolute;left:5px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--bg)}
+.icon{background:none;border:1px solid var(--line);border-radius:10px;width:40px;height:40px;display:grid;place-items:center;color:var(--ink)}
+
+main{max-width:980px;margin:0 auto;padding:6px 18px 130px}
+h1{font-size:30px;line-height:1.1;font-stretch:78%;font-weight:800;margin:10px 0 4px;letter-spacing:-.01em}
+h2{font-size:21px;font-stretch:82%;font-weight:750;margin:0 0 12px}
+h3{font-size:16px;font-weight:700;margin:0 0 10px}
+.sub{color:var(--muted);margin:0 0 18px;max-width:60ch}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.cols{display:grid;gap:14px}
+@media (min-width:860px){.cols{grid-template-columns:1fr 1fr}}
+
+/* hero */
+.hero{padding:22px 18px 16px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.hero .big{font-size:clamp(52px,14vw,84px);line-height:.95;margin:6px 0 4px}
+.period{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--field)}
+.period button{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:14px;color:var(--muted)}
+.period button.on{background:var(--ink);color:var(--bg)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);margin-top:16px;border-top:1px solid var(--line)}
+@media (min-width:620px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{padding:12px 12px 2px 0}
+.stat .v{font-size:26px;display:block}
+.stat .k{font-size:13px;color:var(--muted)}
+
+/* chart */
+.chart svg{display:block;width:100%;height:auto}
+.chart text{font-family:inherit;fill:var(--muted);font-size:11px}
+.chart .val{fill:var(--ink);font-weight:700;font-stretch:72%;font-size:12px}
+
+/* lists */
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.list .name{font-weight:650}
+.list .meta{font-size:13px;color:var(--muted)}
+.right{text-align:right;white-space:nowrap}
+.empty{color:var(--muted);padding:6px 0}
+.rowlink{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;cursor:pointer;border-radius:6px}
+.rowtext{all:unset;box-sizing:border-box;display:block;min-width:0;flex:1;cursor:pointer;border-radius:6px}
+.rowlink:focus-visible,.rowtext:focus-visible,.cellink:focus-visible{outline:3px solid var(--tape);outline-offset:2px}
+.rowlink .name::after,.rowtext .name::after{content:" ›";color:var(--muted);font-weight:500}
+.rowlink:hover .name,.rowtext:hover .name,.cellink:hover{text-decoration:underline;text-underline-offset:3px}
+.cellink{all:unset;cursor:pointer;font-weight:600;border-radius:4px}
+.trend{font-size:15px;margin:4px 0 14px;max-width:60ch}
+.ichart svg{display:block;width:100%;height:auto}
+.ichart text{font-family:inherit;fill:var(--muted);font-size:11px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:6px 0 14px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px dashed currentColor;vertical-align:middle;margin-right:5px}
+.legend b{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);vertical-align:middle;margin-right:5px}
+
+/* stock */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.search{flex:1 1 220px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 13px;font-size:14px}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stockrow .left{min-width:0}
+.stockrow .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-block;font-size:12px;padding:1px 7px;border-radius:5px;background:var(--tape);color:var(--tape-ink);font-weight:700;font-stretch:80%;margin-right:6px}
+.qty{font-size:22px}
+.btn-sm{border:1px solid var(--ink);background:none;border-radius:8px;padding:7px 12px;font-size:14px;font-weight:650}
+.btn-sm:disabled{opacity:.35;cursor:default}
+
+/* lot tags: the signature element */
+.lots{display:grid;gap:14px}
+@media (min-width:760px){.lots{grid-template-columns:1fr 1fr}}
+.tag{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-align:left;padding:0;width:100%;display:block}
+.tag-head{background:var(--tape);color:var(--tape-ink);display:flex;align-items:center;gap:10px;padding:9px 14px}
+.hole{width:13px;height:13px;border-radius:50%;background:var(--bg);box-shadow:inset 0 1px 2px rgba(0,0,0,.35);flex:none}
+.tag-no{font-weight:800;font-stretch:70%;font-size:19px;letter-spacing:.01em}
+.tag-fund{margin-left:auto;font-size:13px;font-weight:650}
+.tag-body{padding:14px}
+.tag-name{font-weight:700;font-size:17px;line-height:1.25}
+.tag-meta{font-size:13px;color:var(--muted);margin-top:2px}
+.bar{height:10px;border-radius:5px;background:var(--field);border:1px solid var(--line);margin:14px 0 6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink)}
+.bar-cap{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.tag-figs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.tag-figs .v{font-size:21px;display:block}
+.tag-figs .k{font-size:12px;color:var(--muted)}
+
+.headrow{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.primary{background:var(--tape);color:var(--tape-ink);border:0;border-radius:10px;padding:12px 18px;font-weight:750}
+.ghost{background:none;border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-weight:600}
+.danger{background:none;border:1px solid var(--loss);color:var(--loss);border-radius:10px;padding:11px 16px;font-weight:650}
+
+/* backer */
+.ledger-table{width:100%;border-collapse:collapse;font-size:14px}
+.tablewrap{overflow-x:auto}
+.ledger-table th{text-align:left;font-weight:600;color:var(--muted);padding:8px 10px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.ledger-table td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.ledger-table td.n,.ledger-table th.n{text-align:right}
+.owed{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.owed .big{font-size:clamp(46px,12vw,72px);line-height:1}
+.note{font-size:14px;color:var(--muted);max-width:62ch}
+
+/* bottom nav */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px))}
+.tabs-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);align-items:end}
+.tab{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--muted);padding:6px 0}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--ink);font-weight:700}
+.sellbtn{justify-self:center;background:var(--tape);color:var(--tape-ink);border:0;border-radius:18px;width:62px;height:56px;display:grid;place-items:center;font-weight:800;font-stretch:78%;font-size:15px;transform:translateY(-10px);box-shadow:0 6px 16px rgba(22,33,58,.25)}
+
+/* sheet */
+#scrim{position:fixed;inset:0;z-index:40;background:rgba(10,15,28,.5);display:flex;align-items:flex-end;justify-content:center}
+#scrim[hidden]{display:none}
+#sheet{background:var(--surface);width:100%;max-width:560px;max-height:92%;overflow-y:auto;border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px));animation:up .22s ease-out}
+@media (min-width:700px){#scrim{align-items:center}#sheet{border-radius:16px;padding:24px}}
+@keyframes up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){#sheet{animation:none}}
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:14px;font-weight:600;margin-bottom:5px}
+.field input,.field select{width:100%;border:1px solid var(--line);background:var(--field);border-radius:10px;padding:11px 12px;min-height:44px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--field);border-radius:9px;padding:9px 12px;font-size:14px}
+.seg button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.preview{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:14px}
+.preview .line{display:flex;justify-content:space-between;padding:3px 0}
+.preview .total{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:15px;font-weight:700}
+.preview .total .num{font-size:26px}
+.actions{display:flex;gap:10px;justify-content:flex-end}
+.itemrow{display:grid;grid-template-columns:1fr 64px 84px 36px;gap:6px;margin-bottom:6px;align-items:center}
+.itemrow input{width:100%;border:1px solid var(--line);background:var(--field);border-radius:8px;padding:9px 8px;min-height:42px;min-width:0}
+.itemrow .x{border:0;background:none;color:var(--muted);font-size:20px;height:42px}
+.itemhead{display:grid;grid-template-columns:1fr 64px 84px 36px;gap:6px;font-size:12px;color:var(--muted);margin-bottom:4px}
+.linkbtn{background:none;border:0;padding:6px 0;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+.err{color:var(--loss);font-size:14px;min-height:20px;margin:0 0 8px}
+.phase{border:1px dashed var(--line);border-radius:12px;padding:14px;margin:14px 0}
+
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:10px;font-weight:600;font-size:15px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#scanner{position:fixed;inset:0;z-index:55;background:rgba(10,15,28,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+#scanner[hidden]{display:none}
+.scan-box{background:var(--surface);width:100%;max-width:520px;border-radius:16px;padding:18px;max-height:100%;overflow-y:auto}
+.scan-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.scan-top h2{margin:0}
+#reader{width:100%;min-height:200px;background:#000;border-radius:10px;overflow:hidden}
+#reader video{width:100% !important;display:block}
+.scan-msg{font-size:14px;color:var(--muted);margin:10px 0 14px}
+.scanbig{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--ink);color:var(--bg);border:0;border-radius:12px;padding:15px;font-weight:750;font-size:17px;margin:6px 0 14px}
+.scanbig svg{width:24px;height:24px}
+.scan-edit{border:2px solid var(--tape);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.with-btn{display:flex;gap:8px}
+.with-btn select,.with-btn input{flex:1;min-width:0}
+.with-btn button{flex:none}
+.xbtn{border:0;background:none;color:var(--muted);font-size:22px;width:36px;height:36px}
+.demo-banner{font-size:13px;color:var(--muted);margin:4px 0 14px}
+
+/* connection, sign-in, loading */
+.gate{max-width:420px;margin:0 auto;padding:40px 18px 60px}
+.gate .brand{font-size:30px;margin-bottom:6px}
+.gate .mark{width:34px;height:34px}
+.gate .panel{margin-top:18px}
+.gate .primary{width:100%;padding:14px}
+.gate .linkbtn{display:block;margin:14px auto 0}
+.okmsg{color:var(--gain);font-size:14px;margin:0 0 8px}
+.loading{display:grid;place-items:center;min-height:60vh;color:var(--muted)}
+button[disabled].primary{opacity:.55;cursor:default}
+.lookup{display:flex;gap:12px;align-items:center;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:12px;font-size:14px}
+.lookup img{width:52px;height:52px;object-fit:contain;border-radius:6px;background:#fff;flex:none}
+.lookup .src{font-size:12px;color:var(--muted)}
+.userline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted);margin-bottom:14px}
+.ro [data-write]{display:none !important}
+.ro .tabs-in{grid-template-columns:repeat(4,1fr)}
+body.gated .top,body.gated .tabs{display:none}
+.syncdot{width:8px;height:8px;border-radius:50%;background:var(--gain);display:inline-block;margin-right:6px}
+.syncdot.off{background:var(--loss)}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand"><span class="mark" aria-hidden="true"></span>LotLedger</div>
+  <button class="icon" data-action="settings" aria-label="Settings">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</div></header>
+
+<main id="main"></main>
+
+<nav class="tabs" aria-label="Sections"><div class="tabs-in">
+  <button class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V10M10 19V5M16 19v-7M22 19H2"/></svg>Profit</button>
+  <button class="tab" data-tab="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>Stock</button>
+  <button class="sellbtn" data-write data-action="sell" aria-label="Record a sale">Sell</button>
+  <button class="tab" data-tab="lots"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Lots</button>
+  <button class="tab" data-tab="backer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M17 11h6M20 8v6"/></svg>Backer</button>
+</div></nav>
+
+<div id="scrim" hidden><div id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="scanner" hidden><div class="scan-box" role="dialog" aria-modal="true" aria-label="Barcode scanner">
+  <div class="scan-top"><h2>Scan a barcode</h2><button class="icon" data-action="scan-cancel" aria-label="Close scanner">×</button></div>
+  <div id="reader"></div>
+  <p class="scan-msg" id="scan-msg">Point the camera at the barcode.</p>
+  <label class="field"><span>Or type the number under the barcode</span>
+  <div class="with-btn"><input id="scan-manual" inputmode="numeric" autocomplete="off" placeholder="e.g. 012345678905" style="border:1px solid var(--line);background:var(--field);border-radius:10px;padding:11px 12px;min-height:44px"><button class="primary" data-action="scan-use">Use</button></div></label>
+  <p class="note" style="margin:0">A Bluetooth barcode scanner works too. Tap the box above, then scan.</p>
+</div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const DAY=864e5;
+const CHANNELS=['TikTok Shop','Live (off-platform)','Other'];
+let state, tab='home', period=30, stockFilter='instock', stockQuery='';
+let sheetCh=CHANNELS[0], logType='invest', resetArmed=false, costCache=new Map();
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=(n,d=0)=>(n<0?'−':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(+c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>+c/4).toString(16)));
+const iso=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const today=()=>iso(Date.now());
+const daysAgo=n=>iso(Date.now()-n*DAY);
+const dt=s=>new Date(s+'T12:00:00').getTime();
+const daysSince=s=>Math.max(0,Math.floor((Date.now()-dt(s))/DAY));
+const lotNo=n=>'Lot '+String(n).padStart(3,'0');
+const shortDate=s=>new Date(s+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function seed(){
+  const rnd=mulberry32(Date.now()%100000);
+  const settings=state.settings;
+  const defs=[
+    {name:'Sneaker cleaning kits',supplier:'CleanStep Wholesale',age:70,cost:300,ship:40,funded:'seller',items:[['Sneaker cleaning kit',50,15,.86]]},
+    {name:'Retail returns pallet: small electronics',supplier:'Gulf Coast Liquidators',age:45,cost:950,ship:180,funded:'backer',items:[['Wireless earbuds',30,25,.8],['Ring light with phone clip',20,18,.75],['Bluetooth speaker',12,35,.17],['USB-C cables, 3-pack',40,9,.7]]},
+    {name:'Beauty overstock case lot',supplier:'Shelfpull Beauty',age:28,cost:650,ship:60,funded:'backer',items:[['Lip gloss gift set',60,12,.62],['Hot air styling brush',25,28,.6],['Vitamin C serum',40,15,.45]]},
+    {name:'Kitchen gadget closeout',supplier:'Gulf Coast Liquidators',age:12,cost:900,ship:120,funded:'backer',items:[['Mini waffle maker',24,22,.38],['Silicone utensil set',36,16,.28],['Handheld milk frother',30,14,.33]]}
+  ];
+  const lots=[],items=[],sales=[];
+  defs.forEach((L,k)=>{
+    const lot={id:uid(),no:k+1,name:L.name,supplier:L.supplier,date:daysAgo(L.age),cost:L.cost,shipIn:L.ship,funded:L.funded};
+    lots.push(lot);
+    L.items.forEach(([name,qty,est,frac])=>{
+      const it={id:uid(),lotId:lot.id,name,qty,est,onHand:qty};
+      items.push(it);
+      const toSell=Math.round(qty*frac); let sold=0;
+      while(sold<toSell){
+        const q=Math.min(toSell-sold,rnd()<.82?1:2);
+        const age=Math.floor(rnd()*Math.max(1,L.age-1));
+        const r=rnd(); const channel=r<.68?CHANNELS[0]:r<.94?CHANNELS[1]:CHANNELS[2];
+        const price=Math.round(est*(.85+rnd()*.3)*100)/100;
+        sales.push({id:uid(),itemId:it.id,date:daysAgo(age),qty:q,price,channel,shipOut:channel===CHANNELS[0]?0:4.5,feePct:settings.fees[channel]});
+        sold+=q;
+      }
+      it.onHand=qty-toSell;
+    });
+  });
+  const capital=[
+    {id:uid(),type:'invest',amount:3000,date:daysAgo(50),note:'Initial capital'},
+    {id:uid(),type:'invest',amount:1000,date:daysAgo(14),note:'Added for kitchen closeout'},
+    {id:uid(),type:'payout',amount:600,date:daysAgo(9),note:'First profit payout'}
+  ];
+  return {settings,lots,items,sales,capital};
+}
+/* ---------- Supabase connection ---------- */
+const CFG_KEY='lotledger-connection', BIZ_KEY='lotledger-shop';
+let sb=null, session=null, biz=null, role='owner', memberships=[], lastLoad=0, gate=null, authMode='signin', online=true;
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
+function connection(){
+  const C=window.LOTLEDGER_CONFIG||{};
+  if(C.SUPABASE_URL&&C.SUPABASE_KEY)return {url:C.SUPABASE_URL.trim(),key:C.SUPABASE_KEY.trim(),fromFile:true};
+  try{const c=JSON.parse(lsGet(CFG_KEY)||'null');if(c&&c.url&&c.key)return c}catch(e){}
+  return null;
+}
+const canWrite=()=>role==='owner'||role==='staff';
+const friendly=e=>{
+  const m=String((e&&(e.message||e.error_description||e.msg))||e||'Something went wrong');
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))return "Can't reach the server. Check your connection and try again.";
+  if(/Invalid login/i.test(m))return 'That email and password don\'t match. Try again or reset your password.';
+  if(/Email not confirmed/i.test(m))return 'Confirm your email first. Check your inbox for the link.';
+  if(/JWT|session|expired/i.test(m))return 'Your sign-in expired. Sign in again.';
+  return m;
+};
+async function busy(btn,fn){
+  if(btn){if(btn.disabled)return;btn.disabled=true;btn._t=btn.textContent;btn.textContent='Saving…'}
+  try{return await fn()}finally{if(btn&&btn.isConnected){btn.disabled=false;btn.textContent=btn._t}}
+}
+
+/* row mapping: database (snake_case) <-> app (camelCase) */
+const fromLot=r=>({id:r.id,no:r.no,name:r.name,supplier:r.supplier,date:r.date,cost:+r.cost,shipIn:+r.ship_in,funded:r.funded,costMode:r.cost_mode});
+const fromItem=r=>({id:r.id,lotId:r.lot_id,name:r.name,qty:r.qty,est:+r.est,onHand:r.on_hand,unitCost:r.unit_cost==null?undefined:+r.unit_cost,barcode:r.barcode||undefined});
+const fromSale=r=>({id:r.id,itemId:r.item_id,date:r.date,qty:r.qty,price:+r.price,channel:r.channel,shipOut:+r.ship_out,feePct:+r.fee_pct});
+const fromCap=r=>({id:r.id,type:r.type,amount:+r.amount,date:r.date,note:r.note||''});
+const fromBiz=b=>({shopName:b.name,sellerName:b.seller_name,backerName:b.backer_name,split:+b.split,fees:Object.assign({'TikTok Shop':0,'Live (off-platform)':0,'Other':0},b.fees||{})});
+
+async function fetchAll(table){
+  const out=[]; const size=1000;
+  for(let from=0;;from+=size){
+    const {data,error}=await sb.from(table).select('*').eq('business_id',biz.id).order('created_at').order(table==='products'?'barcode':'id').range(from,from+size-1);
+    if(error)throw error;
+    out.push(...data); if(data.length<size)break;
+  }
+  return out;
+}
+async function loadAll(){
+  const [lots,items,sales,capital,products]=await Promise.all(['lots','items','sales','capital','products'].map(fetchAll));
+  state={settings:fromBiz(biz),lots:lots.map(fromLot),items:items.map(fromItem),sales:sales.map(fromSale),capital:capital.map(fromCap),products:new Map(products.map(p=>[p.barcode,p]))};
+  lastLoad=Date.now();
+}
+async function loadShop(){
+  const {data,error}=await sb.from('business_members').select('role,businesses(*)').eq('user_id',session.user.id);
+  if(error)throw error;
+  memberships=(data||[]).filter(m=>m.businesses);
+  if(!memberships.length)throw new Error('No shop found for this account. Run the setup SQL, then create a new account.');
+  const pick=memberships.find(m=>m.businesses.id===lsGet(BIZ_KEY))||memberships.find(m=>m.role==='owner')||memberships[0];
+  biz=pick.businesses; role=pick.role; lsSet(BIZ_KEY,biz.id);
+  document.body.classList.toggle('ro',!canWrite());
+  if(!canWrite()&&tab==='home')tab='backer';
+  await loadAll();
+}
+async function refresh(quiet){
+  if(!session||!biz)return;
+  try{
+    const {data,error}=await sb.from('businesses').select('*').eq('id',biz.id).single();
+    if(error)throw error; biz=data; await loadAll(); online=true;
+    if($('#scrim').hidden&&$('#scanner').hidden)render();
+  }catch(e){online=false;if(!quiet)toast(friendly(e))}
+}
+
+/* ---------- gate screens: connect, sign in ---------- */
+function showGate(html){gate=true;document.body.classList.add('gated');$('#main').innerHTML=`<div class="gate"><div class="brand"><span class="mark" aria-hidden="true"></span>LotLedger</div>${html}</div>`;const f=$('#main input');f&&f.focus()}
+function viewConnect(msg){
+  showGate(`<p class="sub">Connect this app to your Supabase project. You only do this once per device.</p>
+  <section class="panel">
+    <label class="field"><span>Project URL</span><input id="c-url" placeholder="https://abcd1234.supabase.co" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Publishable key (or anon key)</span><input id="c-key" placeholder="sb_publishable_…" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+    <p class="note" style="margin:0 0 12px">In Supabase, tap Connect at the top of your project (or Project Settings, then API Keys). Never paste the secret or service_role key here.</p>
+    <p class="err" id="c-err">${esc(msg||'')}</p>
+    <button class="primary" data-action="connect">Connect</button>
+  </section>`);
+}
+function viewAuth(msg,ok){
+  const up=authMode==='signup', reset=authMode==='reset', newpw=authMode==='newpw';
+  const title=up?'Create your account':reset?'Reset your password':newpw?'Choose a new password':'Sign in';
+  showGate(`<p class="sub">${up?'Your account gets its own private shop. Anyone you invite can see it too.':'Inventory and profit for bulk resellers.'}</p>
+  <section class="panel"><h2>${title}</h2>
+    ${newpw?'':`<label class="field"><span>Email</span><input id="a-email" type="email" autocomplete="email" autocapitalize="off" inputmode="email"></label>`}
+    ${reset?'':`<label class="field"><span>${newpw?'New password':'Password'}</span><input id="a-pw" type="password" autocomplete="${up||newpw?'new-password':'current-password'}" minlength="6"></label>`}
+    <p class="okmsg">${ok?esc(ok):''}</p><p class="err" id="a-err">${msg?esc(msg):''}</p>
+    <button class="primary" data-action="auth-go">${up?'Create account':reset?'Email me a reset link':newpw?'Save new password':'Sign in'}</button>
+    ${newpw?'':up?'<button class="linkbtn" data-action="auth-mode" data-mode="signin">I already have an account</button>'
+      :reset?'<button class="linkbtn" data-action="auth-mode" data-mode="signin">Back to sign in</button>'
+      :'<button class="linkbtn" data-action="auth-mode" data-mode="signup">Create an account</button><button class="linkbtn" data-action="auth-mode" data-mode="reset" style="margin-top:4px">Forgot password?</button>'}
+  </section>
+  ${connection()&&!connection().fromFile?'<button class="linkbtn muted" data-action="disconnect">Connect to a different Supabase project</button>':''}`);
+}
+async function doConnect(btn){
+  let url=$('#c-url').value.trim().replace(/\/+$/,''), key=$('#c-key').value.trim(), err=$('#c-err');
+  if(/^[a-z0-9]{20}$/.test(url))url=`https://${url}.supabase.co`;
+  if(!/^https:\/\/.+/.test(url))return err.textContent='The URL should start with https:// and end in .supabase.co';
+  if(!key)return err.textContent='Paste the publishable key.';
+  if(/^sb_secret_/.test(key)||/service_role/.test(atobSafe(key)))return err.textContent='That is a secret key. Use the publishable (or anon) key instead.';
+  await busy(btn,async()=>{
+    try{
+      const test=supabase.createClient(url,key,{auth:{persistSession:false}});
+      const {error}=await test.from('businesses').select('id').limit(1);
+      if(error&&!/permission|policy|JWT/i.test(error.message)){
+        if(/relation|does not exist|schema cache/i.test(error.message))throw new Error('Connected, but the tables are missing. Run schema.sql in the Supabase SQL Editor first.');
+        throw error;
+      }
+      lsSet(CFG_KEY,JSON.stringify({url,key})); start();
+    }catch(e){err.textContent=friendly(e)}
+  });
+}
+function atobSafe(k){try{return atob(k.split('.')[1]||'')}catch(e){return ''}}
+async function doAuth(btn){
+  const err=$('#a-err'); err.textContent='';
+  const email=($('#a-email')||{}).value?.trim(), pw=($('#a-pw')||{}).value;
+  const back=location.origin+location.pathname;
+  if(authMode!=='newpw'&&!email)return err.textContent='Enter your email.';
+  if(authMode!=='reset'&&(!pw||pw.length<6))return err.textContent='Password needs at least 6 characters.';
+  await busy(btn,async()=>{
+    try{
+      if(authMode==='signin'){const {error}=await sb.auth.signInWithPassword({email,password:pw});if(error)throw error}
+      else if(authMode==='signup'){
+        const {data,error}=await sb.auth.signUp({email,password:pw,options:{emailRedirectTo:back}});
+        if(error)throw error;
+        if(!data.session){authMode='signin';viewAuth('',`Almost done. Open the confirmation email sent to ${email}, then sign in here.`)}
+      }
+      else if(authMode==='reset'){
+        const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:back}); if(error)throw error;
+        authMode='signin'; viewAuth('','Check your email for a reset link.');
+      }
+      else if(authMode==='newpw'){
+        const {error}=await sb.auth.updateUser({password:pw}); if(error)throw error;
+        authMode='signin'; toast('Password updated'); await enterApp();
+      }
+    }catch(e){if(err.isConnected)err.textContent=friendly(e)}
+  });
+}
+async function enterApp(){
+  $('#main').innerHTML='<div class="loading">Loading your shop…</div>';
+  try{await sb.rpc('accept_invites').then(()=>{},()=>{});await loadShop();gate=false;document.body.classList.remove('gated');render()}
+  catch(e){authMode='signin';viewAuth(friendly(e))}
+}
+async function start(){
+  const c=connection();
+  if(!c)return viewConnect();
+  if(typeof supabase==='undefined')return viewConnect("The Supabase library didn't load. Check your internet connection and reload.");
+  sb=supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  let entered=false;
+  sb.auth.onAuthStateChange((ev,s)=>{
+    session=s;
+    if(ev==='PASSWORD_RECOVERY'){authMode='newpw';viewAuth();return}
+    if(ev==='SIGNED_OUT'){entered=false;biz=null;state=null;authMode='signin';closeSheet();viewAuth();return}
+    if(ev==='SIGNED_IN'&&s&&!entered&&authMode!=='newpw'){entered=true;setTimeout(enterApp,0)}
+  });
+  const {data}=await sb.auth.getSession(); session=data.session;
+  if(session&&authMode!=='newpw'){if(!entered){entered=true;enterApp()}}
+  else if(authMode!=='newpw')viewAuth();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!gate&&Date.now()-lastLoad>60000)refresh(true)});
+
+/* ---------- sample data and erase ---------- */
+async function loadSample(btn){
+  await busy(btn,async()=>{
+    try{
+      const d=seed(); const B=biz.id;
+      const lotMap=new Map(); d.lots.forEach(l=>{const id=uid();lotMap.set(l.id,id);l.newId=id});
+      const itemMap=new Map(); d.items.forEach(i=>itemMap.set(i.id,uid()));
+      const base=Math.max(0,...state.lots.map(l=>l.no));
+      let r=await sb.from('lots').insert(d.lots.map(l=>({id:l.newId,business_id:B,no:base+l.no,name:l.name,supplier:l.supplier,date:l.date,cost:l.cost,ship_in:l.shipIn,funded:l.funded,cost_mode:'value'})));
+      if(r.error)throw r.error;
+      r=await sb.from('items').insert(d.items.map(i=>({id:itemMap.get(i.id),business_id:B,lot_id:lotMap.get(i.lotId),name:i.name,qty:i.qty,est:i.est,on_hand:i.onHand})));
+      if(r.error)throw r.error;
+      r=await sb.from('sales').insert(d.sales.map(s=>({business_id:B,item_id:itemMap.get(s.itemId),date:s.date,qty:s.qty,price:s.price,channel:s.channel,ship_out:s.shipOut,fee_pct:s.feePct})));
+      if(r.error)throw r.error;
+      r=await sb.from('capital').insert(d.capital.map(c=>({business_id:B,type:c.type,amount:c.amount,date:c.date,note:c.note})));
+      if(r.error)throw r.error;
+      await loadAll(); closeSheet(); tab='home'; render(); toast('Sample data loaded');
+    }catch(e){toast(friendly(e))}
+  });
+}
+async function eraseAll(btn){
+  await busy(btn,async()=>{
+    try{
+      for(const t of ['lots','capital','products']){const {error}=await sb.from(t).delete().eq('business_id',biz.id);if(error)throw error}
+      await loadAll(); closeSheet(); tab='home'; render(); toast('All data erased');
+    }catch(e){toast(friendly(e))}
+  });
+}
+
+/* ---------- barcode lookup (Edge Function) ---------- */
+const lookupCache=new Map();
+async function lookupBarcode(code){
+  if(lookupCache.has(code))return lookupCache.get(code);
+  let res=null;
+  try{
+    const {data,error}=await sb.functions.invoke('barcode-lookup',{body:{barcode:code}});
+    if(error)throw error; res=data;
+  }catch(e){res={found:false,error:true}}
+  if(res&&!res.error&&!res.limited)lookupCache.set(code,res);
+  return res;
+}
+
+/* cost math: each item carries a share of its lot's landed cost, weighted by expected resale value */
+function computeCosts(){
+  costCache=new Map();
+  state.lots.forEach(l=>{
+    const its=state.items.filter(i=>i.lotId===l.id);
+    if(l.costMode==='item'){
+      const base=its.reduce((a,i)=>a+(i.unitCost||0)*i.qty,0);
+      its.forEach(i=>costCache.set(i.id,(i.unitCost||0)+(base?l.shipIn*(i.unitCost||0)/base:0)));
+      return;
+    }
+    const tot=its.reduce((a,i)=>a+i.est*i.qty,0);
+    its.forEach(i=>costCache.set(i.id,tot?(l.cost+l.shipIn)*i.est/tot:0));
+  });
+}
+const uc=i=>costCache.get(i.id)||0;
+const item=id=>state.items.find(i=>i.id===id);
+const lot=id=>state.lots.find(l=>l.id===id);
+function saleCalc(s){
+  const it=item(s.itemId); const rev=s.price*s.qty; const fee=rev*(s.feePct||0)/100;
+  const cost=(it?uc(it):0)*s.qty; return {rev,fee,cost,net:rev-fee-(s.shipOut||0)-cost};
+}
+function lotStats(l){
+  const its=state.items.filter(i=>i.lotId===l.id);
+  const ids=new Set(its.map(i=>i.id));
+  const units=its.reduce((a,i)=>a+i.qty,0), left=its.reduce((a,i)=>a+i.onHand,0);
+  let rev=0,recovered=0,net=0;
+  state.sales.forEach(s=>{if(ids.has(s.itemId)){const c=saleCalc(s);rev+=c.rev;recovered+=c.rev-c.fee-(s.shipOut||0);net+=c.net}});
+  const landed=l.cost+l.shipIn;
+  return {its,units,left,sold:units-left,landed,rev,recovered,net,profit:recovered-landed,paid:landed?recovered/landed:0,age:daysSince(l.date),estLeft:its.reduce((a,i)=>a+i.onHand*i.est,0)};
+}
+
+/* ---------- views ---------- */
+function render(){
+  if(gate||!state)return;
+  computeCosts();
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  const m=$('#main');
+  m.innerHTML=({home:viewHome,stock:viewStock,lots:viewLots,backer:viewBacker})[tab]();
+  if(tab==='stock'){const s=$('#q');s.addEventListener('input',e=>{stockQuery=e.target.value;$('#stocklist').innerHTML=stockRows()});}
+}
+
+function viewHome(){
+  const cut=period?Date.now()-period*DAY:0;
+  const ss=state.sales.filter(s=>dt(s.date)>=cut);
+  let rev=0,net=0,units=0,fees=0; ss.forEach(s=>{const c=saleCalc(s);rev+=c.rev;net+=c.net;fees+=c.fee;units+=s.qty});
+  const stockVal=state.items.reduce((a,i)=>a+i.onHand*uc(i),0);
+  const margin=rev?net/rev*100:0;
+  const label=period?`last ${period} days`:'all time';
+
+  // needs a push
+  const push=state.items.filter(i=>{const l=lot(i.lotId);return i.onHand>0&&daysSince(l.date)>=25&&(i.qty-i.onHand)/i.qty<.5})
+    .map(i=>({i,tied:i.onHand*uc(i),age:daysSince(lot(i.lotId).date)})).sort((a,b)=>b.tied-a.tied).slice(0,4);
+  // top sellers
+  const agg=new Map(); ss.forEach(s=>{const c=saleCalc(s);const a=agg.get(s.itemId)||{u:0,n:0,r:0};a.u+=s.qty;a.n+=c.net;a.r+=c.rev;agg.set(s.itemId,a)});
+  const top=[...agg.entries()].sort((a,b)=>b[1].u-a[1].u).slice(0,5);
+
+  return `
+  <h1>Profit</h1>
+  ${!state.lots.length?`<section class="panel"><h3>Welcome to ${esc(state.settings.shopName)}</h3><p class="note" style="margin:0 0 12px">${canWrite()?'Start by scanning in your first lot. Or load sample data to try everything out first, then erase it from Settings when you\'re ready for real stock.':'Nothing has been added to this shop yet.'}</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap" data-write><button class="primary" data-action="scan-lot">Scan in a lot</button><button class="ghost" data-action="sample">Load sample data</button></div></section>`:''}
+  <section class="panel hero">
+    <div class="hero-top">
+      <div><div class="muted">Net profit, ${label}</div>
+      <div class="big num ${net<0?'loss':''}">${money(net)}</div></div>
+      <div class="period" role="group" aria-label="Time period">
+        ${[[7,'7d'],[30,'30d'],[90,'90d'],[0,'All']].map(([p,t])=>`<button data-period="${p}" class="${p===period?'on':''}">${t}</button>`).join('')}
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="v num">${money(rev)}</span><span class="k">Sales</span></div>
+      <div class="stat"><span class="v num">${margin.toFixed(0)}%</span><span class="k">Margin after fees and cost</span></div>
+      <div class="stat"><span class="v num">${units}</span><span class="k">Units sold</span></div>
+      <div class="stat"><span class="v num">${money(stockVal)}</span><span class="k">Cash sitting in stock</span></div>
+    </div>
+  </section>
+  <section class="panel chart"><h3>Net profit by week</h3>${weekChart()}</section>
+  <div class="cols">
+    <section class="panel"><h3>Needs a push in your next live</h3>
+      ${push.length?`<ul class="list">${push.map(p=>`<li><button class="rowlink" data-action="item" data-item="${p.i.id}"><div><div class="name">${esc(p.i.name)}</div><div class="meta">${p.i.onHand} left, bought ${p.age} days ago</div></div><div class="right"><div class="num" style="font-size:20px">${money(p.tied)}</div><div class="meta">tied up</div></div></button></li>`).join('')}</ul>`:'<p class="empty">Nothing is sitting too long. Stock is moving.</p>'}
+    </section>
+    <section class="panel"><h3>Best sellers, ${label}</h3>
+      ${top.length?`<ul class="list">${top.map(([id,a])=>{const i=item(id);return `<li><button class="rowlink" data-action="item" data-item="${id}"><div><div class="name">${esc(i?i.name:'Deleted item')}</div><div class="meta">${a.u} sold, avg ${money(a.r/a.u,2)}</div></div><div class="right num ${a.n<0?'loss':'gain'}" style="font-size:20px">${money(a.n)}</div></button></li>`}).join('')}</ul>`:'<p class="empty">No sales in this period yet. Tap Sell to record one.</p>'}
+    </section>
+  </div>`;
+}
+
+function weekChart(){
+  const W=8, now=Date.now(); const b=new Array(W).fill(0);
+  state.sales.forEach(s=>{const w=Math.floor((now-dt(s.date))/(7*DAY));if(w>=0&&w<W)b[W-1-w]+=saleCalc(s).net});
+  const max=Math.max(1,...b.map(Math.abs)); const w=640,h=200,pad=26,bw=w/W;
+  const hasNeg=b.some(v=>v<0); const zero=hasNeg?h/2+8:h-pad;
+  const scale=(hasNeg?(h/2-pad):(h-pad*2-4))/max;
+  let out=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Weekly net profit for the last 8 weeks">`;
+  out+=`<line x1="0" x2="${w}" y1="${zero}" y2="${zero}" stroke="var(--line)"/>`;
+  b.forEach((v,k)=>{
+    const bh=Math.abs(v)*scale, x=k*bw+bw*.18, bwid=bw*.64, y=v>=0?zero-bh:zero;
+    const fill=k===W-1?'var(--tape)':(v<0?'var(--loss)':'var(--ink)');
+    out+=`<rect x="${x}" y="${y}" width="${bwid}" height="${Math.max(bh,1)}" rx="3" fill="${fill}"/>`;
+    out+=`<text class="val" x="${x+bwid/2}" y="${v>=0?y-6:y+bh+14}" text-anchor="middle">${money(v)}</text>`;
+    const lbl=k===W-1?'This week':(W-1-k)+'w ago';
+    out+=`<text x="${x+bwid/2}" y="${h-6}" text-anchor="middle">${lbl}</text>`;
+  });
+  return out+'</svg>';
+}
+
+function stockRows(){
+  const q=stockQuery.trim().toLowerCase();
+  let its=state.items.slice();
+  if(stockFilter==='instock')its=its.filter(i=>i.onHand>0);
+  if(stockFilter==='soldout')its=its.filter(i=>i.onHand===0);
+  if(q)its=its.filter(i=>i.name.toLowerCase().includes(q)||lot(i.lotId).name.toLowerCase().includes(q)||(i.barcode||'').includes(q));
+  its.sort((a,b)=>dt(lot(b.lotId).date)-dt(lot(a.lotId).date));
+  if(!its.length)return `<p class="empty">No items match. Try a different search or add a lot.</p>`;
+  return `<ul class="list">${its.map(i=>{const l=lot(i.lotId);return `<li class="stockrow">
+    <button class="rowtext left" data-action="item" data-item="${i.id}"><div class="name">${esc(i.name)}</div>
+    <div class="meta"><span class="pill">${lotNo(l.no)}</span>cost ${money(uc(i),2)} each, list ${money(i.est,2)}</div></button>
+    <div class="right" style="display:flex;align-items:center;gap:12px">
+      <div><div class="qty num">${i.onHand}</div><div class="meta">of ${i.qty}</div></div>
+      <button class="btn-sm" data-write data-action="sell" data-item="${i.id}" ${i.onHand?'':'disabled'}>Sell</button>
+    </div></li>`}).join('')}</ul>`;
+}
+function viewStock(){
+  const units=state.items.reduce((a,i)=>a+i.onHand,0);
+  return `<h1>Stock</h1><p class="sub">${units} units on hand across ${state.items.filter(i=>i.onHand).length} items. Tap an item to see its sales history. Cost per unit includes the item's share of the lot price and inbound shipping.</p>
+  <div class="toolbar"><input id="q" class="search" type="search" placeholder="Search items, lots, or barcodes" value="${esc(stockQuery)}" aria-label="Search stock">
+  <div class="chips">${[['instock','In stock'],['all','All'],['soldout','Sold out']].map(([f,t])=>`<button class="chip ${f===stockFilter?'on':''}" data-filter="${f}">${t}</button>`).join('')}</div></div>
+  <section class="panel" id="stocklist">${stockRows()}</section>`;
+}
+
+function lotTag(l){
+  const s=lotStats(l); const pct=s.units?s.sold/s.units*100:0;
+  const fund=l.funded==='backer'?`Funded by ${esc(state.settings.backerName)}`:`Funded by ${esc(state.settings.sellerName)}`;
+  return `<button class="tag" data-action="lot" data-lot="${l.id}">
+    <div class="tag-head"><span class="hole"></span><span class="tag-no">${lotNo(l.no)}</span><span class="tag-fund">${fund}</span></div>
+    <div class="tag-body">
+      <div class="tag-name">${esc(l.name)}</div>
+      <div class="tag-meta">${esc(l.supplier)}, bought ${shortDate(l.date)} (${s.age} days ago)</div>
+      <div class="bar" aria-label="${pct.toFixed(0)} percent sold"><i style="width:${pct}%"></i></div>
+      <div class="bar-cap"><span>Sold ${s.sold} of ${s.units} units</span><span>${pct.toFixed(0)}%</span></div>
+      <div class="tag-figs">
+        <div><span class="v num">${money(s.landed)}</span><span class="k">Landed cost</span></div>
+        <div><span class="v num">${money(s.recovered)}</span><span class="k">Taken in after fees</span></div>
+        <div><span class="v num ${s.profit<0?'loss':'gain'}">${money(s.profit)}</span><span class="k">${s.profit<0?`Paid back ${(s.paid*100).toFixed(0)}%`:'Profit, fully paid off'}</span></div>
+      </div>
+    </div></button>`;
+}
+function viewLots(){
+  const lots=state.lots.slice().sort((a,b)=>dt(b.date)-dt(a.date));
+  return `<div class="headrow"><div><h1>Lots</h1><p class="sub" style="margin:0">Every bulk buy, tracked until it pays for itself.</p></div>
+  <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-write data-action="add-lot">Add by hand</button><button class="primary" data-write data-action="scan-lot">Scan in a lot</button></span></div>
+  <div class="lots">${lots.map(lotTag).join('')}</div>`;
+}
+
+function backerNumbers(){
+  const inv=state.capital.filter(c=>c.type==='invest').reduce((a,c)=>a+c.amount,0);
+  const paid=state.capital.filter(c=>c.type==='payout').reduce((a,c)=>a+c.amount,0);
+  const bl=state.lots.filter(l=>l.funded==='backer');
+  let realized=0,inStock=0,deployed=0;
+  bl.forEach(l=>{const s=lotStats(l);realized+=s.net;deployed+=s.landed;s.its.forEach(i=>inStock+=i.onHand*uc(i))});
+  const share=Math.max(0,realized)*state.settings.split/100;
+  return {inv,paid,realized,inStock,deployed,share,owed:inv+share-paid,bl};
+}
+function viewBacker(){
+  const b=backerNumbers(); const S=state.settings;
+  const ledger=state.capital.slice().sort((a,c)=>dt(c.date)-dt(a.date));
+  return `<div class="headrow"><div><h1>${esc(S.backerName)}'s view</h1><p class="sub" style="margin:0">What's been put in, where it is now, and what's owed back.</p></div>
+  <button class="primary" data-write data-action="log">Log money in or out</button></div>
+  <section class="panel hero">
+    <div class="muted">Balance owed to ${esc(S.backerName)}</div>
+    <div class="owed"><span class="big num">${money(b.owed)}</span><span class="muted">capital plus ${S.split}% of profit, minus payouts</span></div>
+    <div class="stats">
+      <div class="stat"><span class="v num">${money(b.inv)}</span><span class="k">Capital put in</span></div>
+      <div class="stat"><span class="v num">${money(b.inStock)}</span><span class="k">Still in unsold stock</span></div>
+      <div class="stat"><span class="v num gain">${money(b.share)}</span><span class="k">Profit share earned</span></div>
+      <div class="stat"><span class="v num">${money(b.paid)}</span><span class="k">Paid out so far</span></div>
+    </div>
+  </section>
+  <section class="panel"><h3>Return on each funded lot</h3>
+    <div class="tablewrap"><table class="ledger-table"><thead><tr><th>Lot</th><th class="n">Cost</th><th class="n">Taken in</th><th class="n">Paid back</th><th class="n">Profit on sold units</th></tr></thead><tbody>
+    ${b.bl.map(l=>{const s=lotStats(l);return `<tr><td><span class="pill">${lotNo(l.no)}</span>${esc(l.name)}</td><td class="n num">${money(s.landed)}</td><td class="n num">${money(s.recovered)}</td><td class="n num">${(s.paid*100).toFixed(0)}%</td><td class="n num ${s.net<0?'loss':'gain'}">${money(s.net)}</td></tr>`}).join('')}
+    </tbody></table></div>
+    <p class="note" style="margin-top:12px">Profit share is calculated on units actually sold, so it grows as stock moves. In the full version, ${esc(S.backerName)} gets a separate read-only login to this page.</p>
+  </section>
+  <section class="panel"><h3>Capital ledger</h3>
+    <ul class="list">${ledger.map(c=>`<li><div><div class="name">${c.type==='invest'?'Investment':'Payout to '+esc(S.backerName)}</div><div class="meta">${shortDate(c.date)}${c.note?', '+esc(c.note):''}</div></div><div class="right num ${c.type==='invest'?'':'loss'}" style="font-size:20px">${c.type==='invest'?'+':'−'}${money(c.amount)}</div></li>`).join('')}</ul>
+  </section>`;
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html){$('#sheet').innerHTML=html;$('#scrim').hidden=false;const f=$('#sheet').querySelector('input,select,button');f&&f.focus()}
+function closeSheet(){$('#scrim').hidden=true;$('#sheet').innerHTML='';resetArmed=false;scanLot=null}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600)}
+
+function openSell(itemId){
+  computeCosts();
+  const inStock=state.items.filter(i=>i.onHand>0).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!inStock.length){toast('Everything is sold. Add a lot to restock.');return}
+  const sel=inStock.find(i=>i.id===itemId)||inStock[0];
+  sheetCh=CHANNELS[0];
+  openSheet(`<h2>Record a sale</h2>
+  <label class="field"><span>Item</span><div class="with-btn"><select id="s-item">${inStock.map(i=>`<option value="${i.id}" ${i.id===sel.id?'selected':''}>${esc(i.name)} (${i.onHand} left)</option>`).join('')}</select><button class="ghost" type="button" data-action="sell-scan" style="padding:0 14px">Scan</button></div></label>
+  <div class="grid2"><label class="field"><span>Quantity</span><input id="s-qty" type="number" min="1" step="1" value="1" inputmode="numeric"></label>
+  <label class="field"><span>Price each</span><input id="s-price" type="number" min="0" step="0.01" value="${sel.est}" inputmode="decimal"></label></div>
+  <div class="field"><span>Sold through</span><div class="seg" id="s-ch">${CHANNELS.map((c,k)=>`<button type="button" data-ch="${esc(c)}" class="${k?'':'on'}">${esc(c)}</button>`).join('')}</div></div>
+  <div class="grid2"><label class="field"><span>Shipping you paid</span><input id="s-ship" type="number" min="0" step="0.01" value="0" inputmode="decimal"></label>
+  <label class="field"><span>Date</span><input id="s-date" type="date" value="${today()}"></label></div>
+  <div class="preview" id="s-prev"></div><p class="err" id="s-err"></p>
+  <div class="actions"><button class="ghost" data-action="close">Cancel</button><button class="primary" data-action="save-sale">Record sale</button></div>`);
+  $('#s-item').addEventListener('change',e=>{const i=item(e.target.value);$('#s-price').value=i.est;sellPreview()});
+  ['#s-qty','#s-price','#s-ship'].forEach(s=>$(s).addEventListener('input',sellPreview));
+  sellPreview();
+}
+function sellPreview(){
+  const i=item($('#s-item').value); const q=+$('#s-qty').value||0, p=+$('#s-price').value||0, sh=+$('#s-ship').value||0;
+  const fp=state.settings.fees[sheetCh]||0; const rev=q*p, fee=rev*fp/100, cost=uc(i)*q, net=rev-fee-sh-cost;
+  $('#s-prev').innerHTML=`<div class="line"><span>Sale</span><span class="num">${money(rev,2)}</span></div>
+  <div class="line"><span>${esc(sheetCh)} fee (${fp}%)</span><span class="num">−${money(fee,2)}</span></div>
+  <div class="line"><span>Item cost (${money(uc(i),2)} each)</span><span class="num">−${money(cost,2)}</span></div>
+  <div class="line"><span>Shipping</span><span class="num">−${money(sh,2)}</span></div>
+  <div class="line total"><span>You keep</span><span class="num ${net<0?'loss':'gain'}">${money(net,2)}</span></div>`;
+}
+function saveSale(btn){
+  const i=item($('#s-item').value); const q=+$('#s-qty').value, p=+$('#s-price').value, sh=+$('#s-ship').value||0, d=$('#s-date').value||today();
+  const err=$('#s-err');
+  if(!Number.isInteger(q)||q<1)return err.textContent='Enter a whole number of 1 or more.';
+  if(q>i.onHand)return err.textContent=`Only ${i.onHand} left of this item.`;
+  if(!(p>0))return err.textContent='Enter the price each one sold for.';
+  return busy(btn,async()=>{
+    const {data,error}=await sb.rpc('record_sale',{p_item:i.id,p_qty:q,p_price:p,p_channel:sheetCh,p_ship:sh,p_date:d,p_fee_pct:state.settings.fees[sheetCh]||0});
+    if(error){err.textContent=friendly(error);if(/stock/i.test(error.message))refresh(true);return}
+    const s=fromSale(data); state.sales.push(s); i.onHand-=q; computeCosts();
+    const n=saleCalc(s).net; closeSheet(); render();
+    toast(`Sale recorded: ${n>=0?'+':''}${money(n,2)} profit`);
+  });
+}
+async function undoSale(id,btn){
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap to confirm';return}
+  await busy(btn,async()=>{
+    const {error}=await sb.rpc('delete_sale',{p_sale:id});
+    if(error)return toast(friendly(error));
+    const s=state.sales.find(x=>x.id===id); state.sales=state.sales.filter(x=>x.id!==id);
+    const it=s&&item(s.itemId); if(it)it.onHand+=s.qty;
+    const itemId=s&&s.itemId; render(); if(itemId)openItem(itemId); toast('Sale removed and stock put back');
+  });
+}
+async function deleteLot(id,btn){
+  if(btn.dataset.armed!=='1'){btn.dataset.armed='1';btn.textContent='Tap again to delete the lot and its sales';return}
+  await busy(btn,async()=>{
+    const {error}=await sb.from('lots').delete().eq('id',id);
+    if(error)return toast(friendly(error));
+    const ids=new Set(state.items.filter(i=>i.lotId===id).map(i=>i.id));
+    state.lots=state.lots.filter(l=>l.id!==id); state.items=state.items.filter(i=>!ids.has(i.id)); state.sales=state.sales.filter(s=>!ids.has(s.itemId));
+    closeSheet(); render(); toast('Lot deleted');
+  });
+}
+
+function itemRowHtml(v={}){return `<div class="itemrow"><input placeholder="Item name" value="${esc(v.name||'')}" data-f="name" aria-label="Item name"><input type="number" min="1" step="1" placeholder="Qty" value="${v.qty||''}" data-f="qty" inputmode="numeric" aria-label="Quantity"><input type="number" min="0" step="0.01" placeholder="$ each" value="${v.est||''}" data-f="est" inputmode="decimal" aria-label="Expected price each"><button class="x" type="button" data-action="rm-row" aria-label="Remove item">×</button></div>`}
+function openAddLot(){
+  openSheet(`<h2>Add a lot</h2>
+  <label class="field"><span>What did you buy?</span><input id="l-name" placeholder="e.g. Home decor overstock pallet"></label>
+  <div class="grid2"><label class="field"><span>Supplier</span><input id="l-sup" placeholder="Who you bought from"></label>
+  <label class="field"><span>Date bought</span><input id="l-date" type="date" value="${today()}"></label></div>
+  <div class="grid2"><label class="field"><span>Price paid for the lot</span><input id="l-cost" type="number" min="0" step="0.01" inputmode="decimal"></label>
+  <label class="field"><span>Shipping to you</span><input id="l-ship" type="number" min="0" step="0.01" value="0" inputmode="decimal"></label></div>
+  <div class="field"><span>Whose money paid for it?</span><div class="seg" id="l-fund"><button type="button" data-fund="backer" class="on">${esc(state.settings.backerName)}</button><button type="button" data-fund="seller">${esc(state.settings.sellerName)}</button></div></div>
+  <div class="field"><span>What's in it</span>
+  <div class="itemhead"><span>Item</span><span>Qty</span><span>Sell for</span><span></span></div>
+  <div id="l-rows">${itemRowHtml()}${itemRowHtml()}</div>
+  <button class="linkbtn" data-action="add-row">Add another item</button></div>
+  <div class="preview" id="l-prev"></div><p class="err" id="l-err"></p>
+  <div class="actions"><button class="ghost" data-action="close">Cancel</button><button class="primary" data-action="save-lot">Save lot</button></div>`);
+  $('#sheet').addEventListener('input',lotPreview); lotPreview();
+}
+function readRows(){return [...document.querySelectorAll('#l-rows .itemrow')].map(r=>({name:r.querySelector('[data-f=name]').value.trim(),qty:+r.querySelector('[data-f=qty]').value,est:+r.querySelector('[data-f=est]').value})).filter(r=>r.name||r.qty||r.est)}
+function lotPreview(){
+  const p=$('#l-prev'); if(!p)return;
+  const landed=(+$('#l-cost').value||0)+(+$('#l-ship').value||0);
+  const rows=readRows().filter(r=>r.qty>0&&r.est>0); const units=rows.reduce((a,r)=>a+r.qty,0); const val=rows.reduce((a,r)=>a+r.qty*r.est,0);
+  const fee=state.settings.fees['TikTok Shop']||0; const gross=val*(1-fee/100)-landed;
+  p.innerHTML=`<div class="line"><span>Landed cost</span><span class="num">${money(landed,2)}</span></div>
+  <div class="line"><span>Units</span><span class="num">${units}</span></div>
+  <div class="line"><span>Worth at your prices</span><span class="num">${money(val,2)}</span></div>
+  <div class="line total"><span>Profit if it all sells (after ${fee}% fee)</span><span class="num ${gross<0?'loss':'gain'}">${money(gross)}</span></div>`;
+}
+function saveLot(btn){
+  const err=$('#l-err'); const name=$('#l-name').value.trim(); const cost=+$('#l-cost').value; const ship=+$('#l-ship').value||0;
+  const rows=readRows();
+  if(!name)return err.textContent='Give the lot a name so you can find it later.';
+  if(!(cost>=0)||$('#l-cost').value==='')return err.textContent='Enter what you paid for the lot.';
+  if(!rows.length)return err.textContent='Add at least one item.';
+  const bad=rows.find(r=>!r.name||!Number.isInteger(r.qty)||r.qty<1||!(r.est>0));
+  if(bad)return err.textContent='Each item needs a name, a whole-number quantity, and a price.';
+  const fund=document.querySelector('#l-fund .on').dataset.fund;
+  return createLot(btn,err,{name,supplier:$('#l-sup').value.trim(),date:$('#l-date').value||today(),cost,ship,fund,mode:'value',
+    items:rows.map(r=>({name:r.name,qty:r.qty,est:r.est}))});
+}
+async function createLot(btn,err,L){
+  return busy(btn,async()=>{
+    const {data,error}=await sb.rpc('create_lot',{p_business:biz.id,p_name:L.name,p_supplier:L.supplier,p_date:L.date,p_cost:L.cost,p_ship:L.ship,p_funded:L.fund,p_cost_mode:L.mode,p_items:L.items});
+    if(error){err.textContent=friendly(error);return}
+    const l=fromLot(data);
+    const r=await sb.from('items').select('*').eq('lot_id',l.id);
+    state.lots.push(l); (r.data||[]).forEach(x=>state.items.push(fromItem(x)));
+    L.items.forEach(x=>{if(x.barcode)state.products.set(x.barcode,{barcode:x.barcode,name:x.name,est:x.est,unit_cost:x.unit_cost,brand:x.brand,image_url:x.image_url})});
+    scanLot=null; closeSheet(); tab='lots'; render(); toast(`${lotNo(l.no)} added with ${L.items.reduce((a,x)=>a+x.qty,0)} units`);
+  });
+}
+
+function openLot(id){
+  computeCosts(); const l=lot(id), s=lotStats(l);
+  openSheet(`<div class="tag-head" style="border-radius:10px;margin-bottom:14px"><span class="hole"></span><span class="tag-no">${lotNo(l.no)}</span><span class="tag-fund">${s.age} days open</span></div>
+  <h2 style="margin-bottom:4px">${esc(l.name)}</h2><p class="sub">${esc(l.supplier)}. Paid ${money(l.cost)} plus ${money(l.shipIn)} shipping.</p>
+  <div class="tablewrap"><table class="ledger-table"><thead><tr><th>Item</th><th class="n">Sold</th><th class="n">Left</th><th class="n">Cost each</th><th class="n">List</th></tr></thead><tbody>
+  ${s.its.map(i=>`<tr><td><button class="cellink" data-action="item" data-item="${i.id}">${esc(i.name)}</button></td><td class="n num">${i.qty-i.onHand}</td><td class="n num">${i.onHand}</td><td class="n num">${money(uc(i),2)}</td><td class="n num">${money(i.est,2)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="preview" style="margin-top:14px">
+    <div class="line"><span>Taken in after fees and shipping</span><span class="num">${money(s.recovered,2)}</span></div>
+    <div class="line"><span>Profit on units sold</span><span class="num ${s.net<0?'loss':'gain'}">${money(s.net,2)}</span></div>
+    <div class="line"><span>Remaining stock at list price</span><span class="num">${money(s.estLeft,2)}</span></div>
+    <div class="line total"><span>${s.profit<0?'Still to earn back':'Profit so far'}</span><span class="num ${s.profit<0?'loss':'gain'}">${money(Math.abs(s.profit))}</span></div>
+  </div>
+  <div class="actions" style="justify-content:space-between;flex-wrap:wrap"><button class="danger" data-write data-action="del-lot" data-lot="${l.id}">Delete lot</button><button class="primary" data-action="close">Done</button></div>`);
+}
+
+function openItem(id){
+  computeCosts(); const i=item(id); if(!i)return; const l=lot(i.lotId); const cost=uc(i);
+  const ss=state.sales.filter(s=>s.itemId===id).sort((a,b)=>dt(b.date)-dt(a.date));
+  const units=ss.reduce((a,s)=>a+s.qty,0);
+  let rev=0,net=0; ss.forEach(s=>{const c=saleCalc(s);rev+=c.rev;net+=c.net});
+  const avg=units?rev/units:0, perUnit=units?net/units:0;
+  const prices=ss.map(s=>s.price); const lo=prices.length?Math.min(...prices):0, hi=prices.length?Math.max(...prices):0;
+  const now=Date.now(); const within=(a,b)=>ss.filter(s=>{const d=now-dt(s.date);return d>=a*DAY&&d<b*DAY}).reduce((x,s)=>x+s.qty,0);
+  const u14=within(0,14), p14=within(14,28);
+  const avgDays=units?ss.reduce((a,s)=>a+Math.max(0,(dt(s.date)-dt(l.date))/DAY)*s.qty,0)/units:0;
+  let trend;
+  if(!units) trend='No sales yet.';
+  else{
+    trend=u14>p14?`Picking up: ${u14} sold in the last 2 weeks, up from ${p14} the 2 weeks before.`
+      :u14<p14?`Slowing down: ${u14} sold in the last 2 weeks, down from ${p14} the 2 weeks before.`
+      :`Steady: ${u14} sold in each of the last two 2-week stretches.`;
+    if(i.onHand>0&&u14>0) trend+=` At this pace the remaining ${i.onHand} sell out in about ${Math.max(1,Math.round(i.onHand/(u14/14)))} days.`;
+    else if(i.onHand>0) trend+=` Nothing sold in 2 weeks, so the remaining ${i.onHand} may need a lower price or a push in a live.`;
+    else trend+=' Sold out.';
+  }
+  const ch=new Map(); ss.forEach(s=>{const c=saleCalc(s);const a=ch.get(s.channel)||{u:0,r:0,n:0};a.u+=s.qty;a.r+=c.rev;a.n+=c.net;ch.set(s.channel,a)});
+  openSheet(`<div class="tag-head" style="border-radius:10px;margin-bottom:14px"><span class="hole"></span><span class="tag-no">${lotNo(l.no)}</span><span class="tag-fund">${i.onHand} of ${i.qty} left</span></div>
+  <h2 style="margin-bottom:4px">${esc(i.name)}</h2>
+  <p class="sub" style="margin-bottom:8px">From ${esc(l.name)}. Costs ${money(cost,2)} each, listed at ${money(i.est,2)}.${i.barcode?` Barcode ${esc(i.barcode)}.`:''}</p>
+  <p class="trend">${trend}</p>
+  <div class="stats" style="margin-top:0">
+    <div class="stat"><span class="v num">${units}</span><span class="k">Units sold</span></div>
+    <div class="stat"><span class="v num">${money(avg,2)}</span><span class="k">Average sale price</span></div>
+    <div class="stat"><span class="v num ${perUnit<0?'loss':'gain'}">${money(perUnit,2)}</span><span class="k">Average profit each</span></div>
+    <div class="stat"><span class="v num">${units?Math.round(avgDays):'–'}</span><span class="k">Avg days to sell</span></div>
+  </div>
+  ${units?`<div class="preview" style="margin-top:12px">
+    <div class="line"><span>Price range</span><span class="num">${money(lo,2)} to ${money(hi,2)}</span></div>
+    <div class="line"><span>Total sales</span><span class="num">${money(rev,2)}</span></div>
+    <div class="line total"><span>Total profit</span><span class="num ${net<0?'loss':'gain'}">${money(net,2)}</span></div>
+  </div>
+  <h3 style="margin-top:16px">Sale prices over time</h3>
+  <div class="ichart">${itemChart(ss,l,cost,i.est,avg)}</div>
+  <div class="legend"><span><b></b>A sale</span><span style="color:var(--ink)"><i></i>Average price</span><span style="color:var(--loss)"><i></i>Your cost</span></div>
+  <h3>By channel</h3>
+  <div class="tablewrap"><table class="ledger-table"><thead><tr><th>Channel</th><th class="n">Sold</th><th class="n">Avg price</th><th class="n">Profit</th></tr></thead><tbody>
+  ${[...ch.entries()].sort((a,b)=>b[1].u-a[1].u).map(([c,a])=>`<tr><td>${esc(c)}</td><td class="n num">${a.u}</td><td class="n num">${money(a.r/a.u,2)}</td><td class="n num ${a.n<0?'loss':'gain'}">${money(a.n,2)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <h3 style="margin-top:16px">Every sale</h3>
+  <div class="tablewrap"><table class="ledger-table"><thead><tr><th>Date</th><th class="n">Qty</th><th class="n">Price each</th><th>Channel</th><th class="n">Profit</th><th data-write></th></tr></thead><tbody>
+  ${ss.map(s=>{const c=saleCalc(s);return `<tr><td>${shortDate(s.date)}</td><td class="n num">${s.qty}</td><td class="n num">${money(s.price,2)}</td><td>${esc(s.channel)}</td><td class="n num ${c.net<0?'loss':'gain'}">${money(c.net,2)}</td><td data-write><button class="linkbtn" style="padding:0;font-size:13px" data-action="undo-sale" data-sale="${s.id}">Undo</button></td></tr>`}).join('')}
+  </tbody></table></div>`:''}
+  <div class="actions" style="margin-top:16px"><button class="ghost" data-action="close">Close</button>${i.onHand?`<button class="primary" data-write data-action="sell" data-item="${i.id}">Sell this item</button>`:''}</div>`);
+}
+function itemChart(ss,l,cost,est,avg){
+  const w=520,h=190,pl=44,pr=12,pt=12,pb=26;
+  const t0=dt(l.date), t1=Math.max(Date.now(),t0+DAY);
+  const ys=ss.map(s=>s.price).concat([cost,est,avg]); const ymax=Math.max(...ys)*1.1, ymin=Math.min(0,Math.min(...ys));
+  const X=t=>pl+(t-t0)/(t1-t0)*(w-pl-pr), Y=v=>pt+(1-(v-ymin)/(ymax-ymin))*(h-pt-pb);
+  let o=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Sale prices over time compared with cost">`;
+  [0,.5,1].forEach(f=>{const v=ymin+(ymax-ymin)*f;o+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end">${money(v)}</text>`});
+  o+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(cost)}" y2="${Y(cost)}" stroke="var(--loss)" stroke-width="2" stroke-dasharray="5 4"/>`;
+  o+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4" opacity=".6"/>`;
+  ss.forEach(s=>{o+=`<circle cx="${X(dt(s.date))}" cy="${Y(s.price)}" r="${s.qty>1?6:4.5}" fill="var(--ink)" fill-opacity=".8"/>`});
+  o+=`<text x="${pl}" y="${h-6}">Bought ${shortDate(l.date)}</text><text x="${w-pr}" y="${h-6}" text-anchor="end">Today</text>`;
+  return o+'</svg>';
+}
+/* ---------- barcode scanning ---------- */
+let scanner=null, scanCb=null, scanLot=null;
+function openScanner(cb){
+  scanCb=cb; $('#scanner').hidden=false; $('#scan-manual').value='';
+  const msg=$('#scan-msg'), rd=$('#reader');
+  const noCam=t=>{msg.textContent=t;rd.style.display='none';$('#scan-manual').focus()};
+  if(typeof Html5Qrcode==='undefined'||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
+    return noCam("The camera isn't available here. Type the number, or use a Bluetooth scanner.");
+  rd.style.display=''; msg.textContent='Starting the camera…';
+  try{
+    const F=Html5QrcodeSupportedFormats;
+    scanner=new Html5Qrcode('reader',{verbose:false,formatsToSupport:[F.UPC_A,F.UPC_E,F.EAN_13,F.EAN_8,F.CODE_128,F.CODE_39,F.QR_CODE],experimentalFeatures:{useBarCodeDetectorIfSupported:true}});
+    scanner.start({facingMode:'environment'},{fps:12,qrbox:(w,hh)=>({width:Math.max(60,Math.min(300,Math.floor(w*.85))),height:Math.max(60,Math.min(140,Math.floor(hh*.6)))})},c=>finishScan(c),()=>{})
+      .then(()=>{if(scanner)msg.textContent='Point the camera at the barcode. It scans on its own.'})
+      .catch(()=>{scanner=null;noCam("Couldn't open the camera. Allow camera access in your browser, or type the number below.")});
+  }catch(e){scanner=null;noCam("Couldn't open the camera. Type the number below instead.")}
+}
+async function stopScanner(){if(scanner){const s=scanner;scanner=null;try{await s.stop()}catch(e){}try{s.clear()}catch(e){}}}
+async function finishScan(code){
+  code=String(code||'').trim(); if(!code||!scanCb)return;
+  const cb=scanCb; scanCb=null; await stopScanner(); $('#scanner').hidden=true;
+  try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}
+  cb(code);
+}
+function cancelScan(){scanCb=null;stopScanner();$('#scanner').hidden=true}
+const knownByCode=code=>state.items.slice().reverse().find(i=>i.barcode===code)||(state.products.has(code)?{name:state.products.get(code).name,est:+state.products.get(code).est||0,unitCost:state.products.get(code).unit_cost}:null);
+
+function openScanLot(){
+  scanLot={items:[],edit:null};
+  openSheet(`<h2>Scan in a lot</h2>
+  <p class="sub">Fill in the lot, then scan each product. Scanning a product that's already on the list adds one more.</p>
+  <label class="field"><span>Lot name</span><input id="k-name" placeholder="e.g. Home goods returns pallet"></label>
+  <div class="grid2"><label class="field"><span>Supplier</span><input id="k-sup" placeholder="Who you bought from"></label>
+  <label class="field"><span>Date bought</span><input id="k-date" type="date" value="${today()}"></label></div>
+  <div class="grid2"><label class="field"><span>Shipping to you</span><input id="k-ship" type="number" min="0" step="0.01" value="0" inputmode="decimal"></label>
+  <div class="field"><span>Paid for by</span><div class="seg" id="l-fund"><button type="button" data-fund="backer" class="on">${esc(state.settings.backerName)}</button><button type="button" data-fund="seller">${esc(state.settings.sellerName)}</button></div></div></div>
+  <button class="scanbig" data-action="scan-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan an item</button>
+  <div id="k-edit"></div><div id="k-list"></div>
+  <button class="linkbtn" data-action="noscan-item">Add an item without a barcode</button>
+  <div class="preview" id="k-prev"></div><p class="err" id="k-err"></p>
+  <div class="actions"><button class="ghost" data-action="close">Cancel</button><button class="primary" data-action="save-scanlot">Save lot</button></div>`);
+  $('#sheet').addEventListener('input',scanLotPreview);
+  renderScanLot();
+}
+function onLotScan(code){
+  if(!scanLot)return;
+  const hit=scanLot.items.find(x=>x.code===code);
+  if(hit&&!scanLot.edit){hit.qty+=1;renderScanLot();toast(`${hit.name}: now ${hit.qty}`);return}
+  const k=knownByCode(code), p=state.products.get(code);
+  const src=p?{name:p.name,unitCost:p.unit_cost,est:p.est,brand:p.brand,image:p.image_url}:k?{name:k.name,unitCost:k.unitCost,est:k.est}:null;
+  scanLot.edit={code,name:src?src.name:'',qty:1,cost:src&&src.unitCost!=null?+src.unitCost:'',est:src&&src.est!=null?+src.est:'',known:!!src,brand:src&&src.brand,image:src&&src.image,look:src?null:'loading'};
+  renderScanLot();
+  const f=src?$('#e-cost'):$('#e-name'); f&&f.focus();
+  if(!src)runLookup(code);
+}
+async function runLookup(code){
+  const r=await lookupBarcode(code);
+  const e=scanLot&&scanLot.edit; if(!e||e.code!==code)return;
+  keepEditInputs();
+  e.look=r&&r.found?r:(r&&r.limited?'limited':r&&r.error?'error':'none');
+  if(r&&r.found){
+    if(!e.name)e.name=[r.brand&&!(r.title||'').toLowerCase().includes(r.brand.toLowerCase())?r.brand:'',r.title].filter(Boolean).join(' ').slice(0,120);
+    if(e.est===''&&r.msrp)e.est=Math.round(r.msrp*100)/100;
+    e.brand=r.brand; e.image=r.image_url;
+  }
+  renderScanLot();
+}
+function keepEditInputs(){
+  const e=scanLot&&scanLot.edit; if(!e||!$('#e-name'))return;
+  e.name=$('#e-name').value; e.qty=+$('#e-qty').value||1; e.cost=$('#e-cost').value===''?'':+$('#e-cost').value; e.est=$('#e-est').value===''?'':+$('#e-est').value;
+}
+function lookupHtml(e){
+  if(!e.code)return '';
+  const L=e.look;
+  if(L==='loading')return `<div class="lookup"><span>Looking up this barcode…</span></div>`;
+  if(L&&L.found)return `<div class="lookup">${L.image_url?`<img src="${esc(L.image_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:''}<div><div><b>${esc(L.title||'Product found')}</b></div><div class="src">${L.brand?esc(L.brand)+' · ':''}${L.msrp?'Typical retail '+money(L.msrp,2)+' · ':''}from ${esc(L.source)}. Check the name before saving.</div></div></div>`;
+  if(L==='limited')return `<div class="lookup"><span>The free barcode lookup hit its daily limit. Type the name this time. It's remembered for next time.</span></div>`;
+  if(L==='error')return `<div class="lookup"><span>Barcode lookup isn't set up or didn't respond. Type the name, and it's remembered for next time.</span></div>`;
+  if(L==='none')return `<div class="lookup"><span>Not in the public barcode databases. Name it once and it's remembered.</span></div>`;
+  return '';
+}
+function renderScanLot(){
+  const e=scanLot.edit;
+  $('#k-edit').innerHTML=e?`<div class="scan-edit">
+    <div class="meta" style="margin-bottom:8px">${e.code?`Barcode ${esc(e.code)}. ${e.known?'Recognized from an earlier lot, so details are filled in.':'New product for this shop.'}`:'Item without a barcode.'}</div>
+    ${e.known?'':lookupHtml(e)}
+    <label class="field"><span>Product name</span><input id="e-name" value="${esc(e.name)}" placeholder="What is it?"></label>
+    <div class="grid3"><label class="field"><span>Quantity</span><input id="e-qty" type="number" min="1" step="1" value="${e.qty}" inputmode="numeric"></label>
+    <label class="field"><span>Cost each</span><input id="e-cost" type="number" min="0" step="0.01" value="${e.cost}" inputmode="decimal"></label>
+    <label class="field"><span>Sell for</span><input id="e-est" type="number" min="0" step="0.01" value="${e.est}" inputmode="decimal"></label></div>
+    <p class="err" id="e-err"></p>
+    <div class="actions" style="flex-wrap:wrap"><button class="ghost" data-action="edit-discard">Discard</button><button class="ghost" data-action="edit-add">Add to lot</button><button class="primary" data-action="edit-add-next">Add and scan next</button></div>
+  </div>`:'';
+  $('#k-list').innerHTML=scanLot.items.length?`<h3>In this lot</h3><ul class="list" style="margin-bottom:8px">${scanLot.items.map((x,k)=>`<li><div style="min-width:0"><div class="name">${esc(x.name)}</div><div class="meta">${x.code?esc(x.code)+', ':''}${x.qty} at ${money(x.cost,2)}, sell for ${money(x.est,2)}</div></div><div class="right" style="display:flex;align-items:center;gap:6px"><span class="num" style="font-size:19px">${money(x.qty*x.cost)}</span><button class="xbtn" data-action="k-rm" data-i="${k}" aria-label="Remove ${esc(x.name)}">×</button></div></li>`).join('')}</ul>`:'';
+  scanLotPreview();
+}
+function scanLotPreview(){
+  const p=$('#k-prev'); if(!p||!scanLot)return;
+  const ship=+($('#k-ship')||{}).value||0;
+  const units=scanLot.items.reduce((a,x)=>a+x.qty,0), cost=scanLot.items.reduce((a,x)=>a+x.qty*x.cost,0), val=scanLot.items.reduce((a,x)=>a+x.qty*x.est,0);
+  const fee=state.settings.fees['TikTok Shop']||0, gross=val*(1-fee/100)-cost-ship;
+  p.innerHTML=`<div class="line"><span>Units</span><span class="num">${units}</span></div>
+  <div class="line"><span>Product cost</span><span class="num">${money(cost,2)}</span></div>
+  <div class="line"><span>Landed cost with shipping</span><span class="num">${money(cost+ship,2)}</span></div>
+  <div class="line"><span>Worth at your prices</span><span class="num">${money(val,2)}</span></div>
+  <div class="line total"><span>Profit if it all sells (after ${fee}% fee)</span><span class="num ${gross<0?'loss':'gain'}">${money(gross)}</span></div>`;
+}
+function commitEdit(){
+  const e=scanLot.edit, err=$('#e-err');
+  const name=$('#e-name').value.trim(), qty=+$('#e-qty').value, cost=$('#e-cost').value===''?NaN:+$('#e-cost').value, est=+$('#e-est').value;
+  if(!name){err.textContent='Give the product a name.';return false}
+  if(!Number.isInteger(qty)||qty<1){err.textContent='Quantity must be a whole number of 1 or more.';return false}
+  if(!(cost>=0)){err.textContent='Enter what you paid for each one.';return false}
+  if(!(est>0)){err.textContent='Enter what you plan to sell each one for.';return false}
+  const hit=e.code&&scanLot.items.find(x=>x.code===e.code);
+  if(hit){hit.qty+=qty;hit.name=name;hit.cost=cost;hit.est=est}else scanLot.items.push({code:e.code,name,qty,cost,est,brand:e.brand||null,image:e.image||null});
+  scanLot.edit=null; renderScanLot(); toast(`Added ${name} × ${qty}`); return true;
+}
+function saveScanLot(btn){
+  const err=$('#k-err'); const name=$('#k-name').value.trim();
+  if(scanLot.edit)return err.textContent='Add or discard the item you\'re editing first.';
+  if(!name)return err.textContent='Give the lot a name so you can find it later.';
+  if(!scanLot.items.length)return err.textContent='Scan at least one item.';
+  const ship=+$('#k-ship').value||0, fund=document.querySelector('#l-fund .on').dataset.fund;
+  return createLot(btn,err,{name,supplier:$('#k-sup').value.trim(),date:$('#k-date').value||today(),cost:scanLot.items.reduce((a,x)=>a+x.qty*x.cost,0),ship,fund,mode:'item',
+    items:scanLot.items.map(x=>({name:x.name,qty:x.qty,est:x.est,unit_cost:x.cost,barcode:x.code||null,brand:x.brand||null,image_url:x.image||null}))});
+}
+function onSellScan(code){
+  const i=state.items.find(x=>x.barcode===code&&x.onHand>0);
+  const err=$('#s-err'); if(!err)return;
+  if(!i){err.textContent=knownByCode(code)?'That product is sold out.':`No item with barcode ${code} yet. Scan it in with a lot first.`;return}
+  const s=$('#s-item'); s.value=i.id; s.dispatchEvent(new Event('change')); err.textContent='';
+}
+
+function openLog(){
+  logType='invest';
+  openSheet(`<h2>Log money in or out</h2>
+  <div class="field"><span>Type</span><div class="seg" id="g-type"><button type="button" data-type="invest" class="on">Investment from ${esc(state.settings.backerName)}</button><button type="button" data-type="payout">Payout to ${esc(state.settings.backerName)}</button></div></div>
+  <div class="grid2"><label class="field"><span>Amount</span><input id="g-amt" type="number" min="0" step="0.01" inputmode="decimal"></label>
+  <label class="field"><span>Date</span><input id="g-date" type="date" value="${today()}"></label></div>
+  <label class="field"><span>Note (optional)</span><input id="g-note" placeholder="e.g. Funding for next pallet"></label>
+  <p class="err" id="g-err"></p>
+  <div class="actions"><button class="ghost" data-action="close">Cancel</button><button class="primary" data-action="save-log">Save entry</button></div>`);
+}
+function saveLog(btn){
+  const a=+$('#g-amt').value; if(!(a>0))return $('#g-err').textContent='Enter an amount greater than zero.';
+  return busy(btn,async()=>{
+    const {data,error}=await sb.from('capital').insert({business_id:biz.id,type:logType,amount:a,date:$('#g-date').value||today(),note:$('#g-note').value.trim()}).select().single();
+    if(error)return $('#g-err').textContent=friendly(error);
+    state.capital.push(fromCap(data)); closeSheet(); tab='backer'; render(); toast(logType==='invest'?'Investment saved':'Payout saved');
+  });
+}
+
+function openSettings(){
+  const S=state.settings, owner=role==='owner', empty=!state.lots.length&&!state.capital.length;
+  const roleName={owner:'Owner',staff:'Staff',backer:'Backer (view only)'}[role];
+  openSheet(`<h2>Settings</h2>
+  <div class="userline"><span><span class="syncdot ${online?'':'off'}"></span>${esc(session.user.email)} · ${roleName}</span><button class="ghost" data-action="signout" style="padding:8px 14px">Sign out</button></div>
+  ${memberships.length>1?`<label class="field"><span>Shop</span><select id="t-shop">${memberships.map(m=>`<option value="${m.businesses.id}" ${m.businesses.id===biz.id?'selected':''}>${esc(m.businesses.name)} (${esc(m.role)})</option>`).join('')}</select></label>`:''}
+  ${owner?`<label class="field"><span>Shop name</span><input id="t-shopname" value="${esc(S.shopName)}"></label>
+  <div class="grid2"><label class="field"><span>Seller name</span><input id="t-seller" value="${esc(S.sellerName)}"></label>
+  <label class="field"><span>Backer name</span><input id="t-backer" value="${esc(S.backerName)}"></label></div>
+  <label class="field"><span>Backer's share of profit (%)</span><input id="t-split" type="number" min="0" max="100" step="1" value="${S.split}"></label>
+  <div class="field"><span>Fees taken per sale (%)</span><p class="note" style="margin:0 0 8px">Set these to your actual rates. Changes apply to new sales only.</p>
+  ${CHANNELS.map((c,k)=>`<label class="field" style="margin-bottom:8px"><span style="font-weight:500">${esc(c)}</span><input id="t-fee${k}" type="number" min="0" max="100" step="0.1" value="${S.fees[c]}"></label>`).join('')}</div>
+  <div class="actions" style="margin-bottom:6px"><button class="primary" data-action="save-settings">Save settings</button></div>
+  <div class="phase"><h3 style="margin-bottom:4px">Invite someone</h3><p class="note" style="margin:0 0 10px">They create an account with this email and land in this shop. A backer can see everything but can't change anything. Staff can add lots and record sales.</p>
+    <label class="field"><span>Their email</span><input id="t-invite" type="email" autocapitalize="off" inputmode="email"></label>
+    <div class="seg" id="t-role" style="margin-bottom:10px"><button type="button" data-fund="backer" class="on">Backer</button><button type="button" data-fund="staff">Staff</button></div>
+    <p class="err" id="t-inv-err"></p><button class="ghost" data-action="invite">Send invite</button></div>`:''}
+  <div class="phase"><h3 style="margin-bottom:4px">Connect TikTok Shop</h3><p class="note" style="margin:0 0 10px">Planned for phase 2: pull orders and sync stock counts automatically, so sales made through Shop checkout never need typing in.</p><button class="ghost" disabled style="opacity:.5">Available in phase 2</button></div>
+  ${canWrite()?`<div class="phase"><h3 style="margin-bottom:4px">Testing tools</h3><p class="note" style="margin:0 0 10px">${empty?'Load a few sample lots and sales to try the app before entering real stock.':'Sample data is only offered while the shop is empty.'}</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${empty?'<button class="ghost" data-action="sample">Load sample data</button>':''}${owner&&!empty?'<button class="danger" data-action="erase">Erase all data in this shop</button>':''}</div></div>`:''}
+  <div class="actions"><button class="ghost" data-action="close">Close</button></div>`);
+}
+function saveSettings(btn){
+  const fees={}; CHANNELS.forEach((c,k)=>fees[c]=Math.min(100,Math.max(0,+$('#t-fee'+k).value||0)));
+  const row={name:$('#t-shopname').value.trim()||'My shop',seller_name:$('#t-seller').value.trim()||'Seller',backer_name:$('#t-backer').value.trim()||'Backer',
+    split:Math.min(100,Math.max(0,+$('#t-split').value||0)),fees};
+  return busy(btn,async()=>{
+    const {data,error}=await sb.from('businesses').update(row).eq('id',biz.id).select().single();
+    if(error)return toast(friendly(error));
+    biz=data; state.settings=fromBiz(biz); closeSheet(); render(); toast('Settings saved');
+  });
+}
+async function sendInvite(btn){
+  const email=$('#t-invite').value.trim().toLowerCase(), r=document.querySelector('#t-role .on').dataset.fund, err=$('#t-inv-err');
+  if(!/^\S+@\S+\.\S+$/.test(email))return err.textContent='Enter a valid email.';
+  await busy(btn,async()=>{
+    const {error}=await sb.from('business_invites').upsert({business_id:biz.id,email,role:r},{onConflict:'business_id,email'});
+    if(error)return err.textContent=friendly(error);
+    err.textContent=''; $('#t-invite').value='';
+    toast(`Invite saved. Send ${email} the app link and have them create an account.`);
+  });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.id==='scrim'){closeSheet();return}
+  const el=t.closest('[data-tab],[data-period],[data-filter],[data-ch],[data-fund],[data-type],[data-action]'); if(!el)return;
+  if(el.dataset.tab){tab=el.dataset.tab;render();window.scrollTo(0,0);return}
+  if(el.dataset.period!==undefined){period=+el.dataset.period;render();return}
+  if(el.dataset.filter){stockFilter=el.dataset.filter;render();return}
+  if(el.dataset.ch){sheetCh=el.dataset.ch;el.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));const d=$('#s-ship');if(d)sellPreview();return}
+  if(el.dataset.fund||el.dataset.type){if(el.dataset.type)logType=el.dataset.type;el.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));return}
+  switch(el.dataset.action){
+    case 'sell':openSell(el.dataset.item);break;
+    case 'item':openItem(el.dataset.item);break;
+    case 'scan-lot':openScanLot();break;
+    case 'scan-item':openScanner(onLotScan);break;
+    case 'noscan-item':if(scanLot){scanLot.edit={code:'',name:'',qty:1,cost:'',est:'',known:false};renderScanLot();$('#e-name').focus()}break;
+    case 'edit-discard':scanLot.edit=null;renderScanLot();break;
+    case 'edit-add':commitEdit();break;
+    case 'edit-add-next':if(commitEdit())openScanner(onLotScan);break;
+    case 'k-rm':scanLot.items.splice(+el.dataset.i,1);renderScanLot();break;
+    case 'save-scanlot':saveScanLot(el);break;
+    case 'sell-scan':openScanner(onSellScan);break;
+    case 'scan-cancel':cancelScan();break;
+    case 'scan-use':finishScan($('#scan-manual').value);break;
+    case 'close':closeSheet();break;
+    case 'save-sale':saveSale(el);break;
+    case 'add-lot':openAddLot();break;
+    case 'add-row':$('#l-rows').insertAdjacentHTML('beforeend',itemRowHtml());$('#l-rows .itemrow:last-child input').focus();break;
+    case 'rm-row':{const rows=document.querySelectorAll('#l-rows .itemrow');if(rows.length>1)el.closest('.itemrow').remove();lotPreview();break}
+    case 'save-lot':saveLot(el);break;
+    case 'lot':openLot(el.dataset.lot);break;
+    case 'log':openLog();break;
+    case 'save-log':saveLog(el);break;
+    case 'settings':openSettings();break;
+    case 'save-settings':saveSettings(el);break;
+    case 'invite':sendInvite(el);break;
+    case 'signout':sb.auth.signOut();break;
+    case 'sample':loadSample(el);break;
+    case 'erase':
+      if(!resetArmed){resetArmed=true;el.textContent='Tap again to erase everything';return}
+      eraseAll(el);break;
+    case 'connect':doConnect(el);break;
+    case 'disconnect':lsSet(CFG_KEY,null);location.reload();break;
+    case 'auth-go':doAuth(el);break;
+    case 'auth-mode':authMode=el.dataset.mode;viewAuth();break;
+    case 'undo-sale':undoSale(el.dataset.sale,el);break;
+    case 'del-lot':deleteLot(el.dataset.lot,el);break;
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(!$('#scanner').hidden){cancelScan();return} if(!$('#scrim').hidden)closeSheet()}
+  if(e.key==='Enter'&&e.target.id==='scan-manual'){e.preventDefault();finishScan(e.target.value)}
+  if(e.key==='Enter'&&gate&&e.target.tagName==='INPUT'){e.preventDefault();const b=$('#main [data-action=auth-go],#main [data-action=connect]');b&&b.click()}
+});
+
+document.addEventListener('change',e=>{if(e.target.id==='t-shop'){lsSet(BIZ_KEY,e.target.value);closeSheet();enterApp()}});
+start();
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
