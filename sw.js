@@ -1,7 +1,7 @@
 // LotLedger service worker: network-first for the app shell so updates show
 // up right away, with a cached copy for offline/slow starts. Supabase API
 // calls are never cached. Bump VERSION on every release.
-const VERSION = 'lotledger-2026-10-06a';
+const VERSION = 'lotledger-2026-10-08a';
 const SHELL = ['./', 'index.html', 'config.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => {
